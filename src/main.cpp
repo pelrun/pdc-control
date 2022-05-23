@@ -130,7 +130,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    hid_device* handle = hid_open(0x0716, 0x5032, L"UPD005");
+    hid_device* handle = hid_open(0x0716, 0x5036, NULL);
 
     if (handle == nullptr) {
         fprintf(stderr, "PDC device not connected\n");
