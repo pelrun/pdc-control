@@ -1,0 +1,46 @@
+//------------------------------------------------
+//--- 010 Editor v11.0.1 Binary Template
+//
+//      File: 
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: 
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+
+
+enum <ubyte> command_e {
+    FW_ERASE = 0x08,
+    FW_WRITE = 0x09,
+    FW_READ = 0x0b,
+};
+
+struct fw_write_params {
+    ubyte payloadLength;
+    uint32 address;
+    ubyte fwlength; 
+    ubyte fwdata[fwlength];
+    ubyte padding[47-fwlength];
+};
+
+struct hid_msg {
+    ubyte vendorid[2];
+    ubyte seconds;
+    uint32 timestamp;
+    ubyte counter;
+    enum command_e command;
+
+if (command == FW_WRITE) {
+    struct fw_write_params params;
+}
+    ubyte checksum[2];
+};
+
+while (!FEof())
+{
+    struct hid_msg msg;
+}
+
