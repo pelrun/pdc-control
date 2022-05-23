@@ -143,6 +143,8 @@ int main(int argc, char* argv[]) {
 
     readModes(handle);
 
+    hid_close(handle);
+
     hid_exit();
     return 0;
 }

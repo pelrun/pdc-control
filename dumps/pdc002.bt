@@ -13,30 +13,79 @@
 
 
 enum <ubyte> command_e {
+    UPGRADE_MODE = 0x03,
+    LOCK_FW = 0x04,
+    UNLOCK_FW = 0x05,
     FW_ERASE = 0x08,
     FW_WRITE = 0x09,
+    GET_CONFIG = 0x0a,
     FW_READ = 0x0b,
+    RESTART = 0x17,
+};
+
+struct fw_erase_params {
+    FSeek(startof(this)+53);
 };
 
 struct fw_write_params {
     ubyte payloadLength;
-    uint32 address;
+    uint32 destAddress;
     ubyte fwlength; 
     ubyte fwdata[fwlength];
-    ubyte padding[47-fwlength];
+    FSeek(startof(this)+53);
 };
 
+struct fw_read_params {
+    FSeek(startof(this)+53);
+};
+
+struct get_config_params {
+    ubyte payloadLength;
+    uint32 address;
+    ubyte length;
+    FSeek(startof(this)+53);
+};
+
+struct get_config_response {
+    ubyte payloadLength;
+    ubyte payload[payloadLength];
+    FSeek(startof(this)+53);
+};
+
+// all the timestamp shenanigans seem to be just camouflage
+// but hiding the high bit in countC
 struct hid_msg {
-    ubyte vendorid[2];
-    ubyte seconds;
-    uint32 timestamp;
-    ubyte counter;
+    ubyte vendorid[2]; // 0xFF55
+    ubyte countA <comment = "(tickCount/1000)&0xff">;
+    ubyte countB <comment = "(countA * 0x18) + (tickCount&0xFF)">;
+    ubyte countC <comment = "(tickCount/0x1e) but bit 8 = (param2==0) requests response message?">;
+    ubyte countD <comment = "(countA / 100)">;
+    ubyte countE <comment = "tickCount - countD * 100">;
+    ubyte countF <comment = "tickCount / 0x50">;
     enum command_e command;
 
-if (command == FW_WRITE) {
+switch (command)
+{
+case FW_ERASE:
+    struct fw_erase_params params;
+    break;
+case FW_WRITE:
     struct fw_write_params params;
+    break;
+case FW_READ:
+    struct fw_read_params params;
+    break;
+case GET_CONFIG:
+    if (countC&0x80) {
+        struct get_config_params params;
+    } else {
+        struct get_config_response response;
+    }
+    break;
+default:
+    ubyte padding[53];
 }
-    ubyte checksum[2];
+    ubyte checksum[2]; // [0]=sum of bytes 8-61, [1]=sum of bytes 0-61
 };
 
 while (!FEof())
