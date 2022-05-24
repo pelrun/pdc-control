@@ -18,7 +18,7 @@ data[62] = sum of bytes 8-61
 data[63] = sum of bytes 0-61
 
 Commands:
-    UPGRADE_MODE = 0x03, (I think this is just "are you there")
+    UPGRADE_MODE = 0x03, (jump to the bootloader code)
     OK_RESPONSE = 0x02, (sent by unit as a success code for commands 3,4,5,0x17)
     LOCK_FW = 0x04,
     UNLOCK_FW = 0x05, (needed before doing flash erase or write)

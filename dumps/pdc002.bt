@@ -14,10 +14,13 @@
 LittleEndian();
 
 enum <ubyte> command_e {
-    UPGRADE_MODE = 0x03,
+    FAIL_RESPONSE = 0x01,
     OK_RESPONSE = 0x02,
-    LOCK_FW = 0x04,
-    UNLOCK_FW = 0x05,
+    UPGRADE_MODE = 0x03, // enters bootloader
+    LOCK_FLASH = 0x04,
+    UNLOCK_FLASH = 0x05, // needed before flash write/erase
+    LOCK_RDP = 0x07,
+    UNLOCK_RDP = 0x07, // !! erases chip !!
     FLASH_ERASE = 0x08,
     FLASH_WRITE = 0x09,
     FLASH_READ = 0x0a,
