@@ -11,23 +11,27 @@
 //   History: 
 //------------------------------------------------
 
+LittleEndian();
 
 enum <ubyte> command_e {
     UPGRADE_MODE = 0x03,
+    OK_RESPONSE = 0x02,
     LOCK_FW = 0x04,
     UNLOCK_FW = 0x05,
-    FW_ERASE = 0x08,
-    FW_WRITE = 0x09,
-    GET_CONFIG = 0x0a,
-    FW_READ = 0x0b,
+    FLASH_ERASE = 0x08,
+    FLASH_WRITE = 0x09,
+    FLASH_READ = 0x0a,
+    FLASH_READ_LARGE = 0x0b,
     RESTART = 0x17,
 };
 
-struct fw_erase_params {
+struct flash_erase_params {
+    ubyte payloadLength;
+    uint32 address;
     FSeek(startof(this)+53);
 };
 
-struct fw_write_params {
+struct flash_write_params {
     ubyte payloadLength;
     uint32 destAddress;
     ubyte fwlength; 
@@ -35,55 +39,72 @@ struct fw_write_params {
     FSeek(startof(this)+53);
 };
 
-struct fw_read_params {
+struct flash_read_large_params {
+    ubyte payloadLength;
+
+    if (payloadLength == 6)
+    {
+        uint32 address;
+        uint16 length;
+    }
+    else
+    {
+        ubyte payload[payloadLength];
+    }
     FSeek(startof(this)+53);
 };
 
-struct get_config_params {
+struct flash_read_params {
     ubyte payloadLength;
     uint32 address;
     ubyte length;
     FSeek(startof(this)+53);
 };
 
-struct get_config_response {
+struct flash_read_response {
     ubyte payloadLength;
     ubyte payload[payloadLength];
     FSeek(startof(this)+53);
 };
 
 // all the timestamp shenanigans seem to be just camouflage
-// but hiding the high bit in countC
-struct hid_msg {
-    ubyte vendorid[2]; // 0xFF55
+// but hiding the responseNeeded bit in the middle
+struct timestamp {
     ubyte countA <comment = "(tickCount/1000)&0xff">;
     ubyte countB <comment = "(countA * 0x18) + (tickCount&0xFF)">;
-    ubyte countC <comment = "(tickCount/0x1e) but bit 8 = (param2==0) requests response message?">;
+    ubyte countC : 7 <comment = "(tickCount/0x1e)">;
+    ubyte responseNeeded : 1;
     ubyte countD <comment = "(countA / 100)">;
     ubyte countE <comment = "tickCount - countD * 100">;
     ubyte countF <comment = "tickCount / 0x50">;
+};
+
+struct hid_msg {
+    ubyte vendorid[2]; // 0xFF55
+    struct timestamp ts;
     enum command_e command;
 
 switch (command)
 {
-case FW_ERASE:
-    struct fw_erase_params params;
+case FLASH_ERASE:
+    struct flash_erase_params params;
     break;
-case FW_WRITE:
-    struct fw_write_params params;
+case FLASH_WRITE:
+    struct flash_write_params params;
     break;
-case FW_READ:
-    struct fw_read_params params;
+case FLASH_READ_LARGE:
+    struct flash_read_large_params params;
     break;
-case GET_CONFIG:
-    if (countC&0x80) {
-        struct get_config_params params;
+case FLASH_READ:
+    if (ts.responseNeeded) {
+        struct flash_read_params params;
     } else {
-        struct get_config_response response;
+        struct flash_read_response response;
     }
     break;
 default:
-    ubyte padding[53];
+    FSkip(53);
+    //ubyte padding[53];
 }
     ubyte checksum[2]; // [0]=sum of bytes 8-61, [1]=sum of bytes 0-61
 };

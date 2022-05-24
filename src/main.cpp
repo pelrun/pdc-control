@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <array>
 #include <vector>
+#include <string>
+#include <iostream>
 
 const int BUF_SIZE = 255;
 
@@ -37,9 +39,9 @@ void sendCommand(hid_device* handle, uint8_t cmd[64]) {
 std::vector<uint8_t> readResponse(hid_device* handle) {
     std::array<uint8_t, 64> data;
     hid_read(handle, data.data(), 64);
-    
+
     if (!(data[0] == 0xff && data[1] == 0x55)) {
-        printf("Invalid header response\n");
+        std::cout << "Invalid header response" << std::endl;
     }
 
     char checksum[3] = {0};
@@ -47,12 +49,12 @@ std::vector<uint8_t> readResponse(hid_device* handle) {
         checksum[0] += data[ptr+8];
         checksum[1] += data[ptr+9];
         checksum[2] += data[ptr+10];
-    } 
+    }
 
     if ((uint8_t)(checksum[0] + checksum[1] + checksum[2]) != data[62]) {
-        printf("Invalid checksum\n");
+        std::cout << "Invalid checksum" << std::endl;
     }
-    
+
     uint8_t length = data[9];
 
     std::vector<uint8_t> content;
@@ -61,7 +63,7 @@ std::vector<uint8_t> readResponse(hid_device* handle) {
     for (int i = 0; i<length; i++) {
         content[i] = data[10+i];
     }
-    
+
     return content;
 }
 
@@ -70,14 +72,17 @@ void doThing(hid_device* handle, uint8_t buffer[65]) {
     auto data = readResponse(handle);
 }
 
-void getFirmwareName(hid_device* handle) {
+// Returns true if firmware supports PC configuration
+bool getFirmwareName(hid_device* handle) {
     sendCommand(handle, msg2);
 
     auto data = readResponse(handle);
 
-    printf("Firmware: ");
-    for (auto c : data) printf("%c", c);
-    printf("\n");
+    std::string name(data.begin(), data.end());
+
+    std::cout << "Firmware: " << name << std::endl;
+
+    return name.find("PCCTL") != std::string::npos;
 }
 
 void readModes(hid_device* handle) {
@@ -115,8 +120,8 @@ void readModes(hid_device* handle) {
             int maxVoltage = ((mode & 0x1ff0000) >> 16) * 5;
             printf("Mode %d:   %2d.%02dV - %2d.%02dV %2d.%02dA\n", i+1, minVoltage/100, minVoltage%100, maxVoltage/100, maxVoltage%100, amperage/100, amperage%100);
         }  else {
-            int voltage = ((mode & 0x7FE00) >> 9) * 2.5; 
-            int amperage = mode & 0x1ff; 
+            int voltage = ((mode & 0x7FE00) >> 9) * 2.5;
+            int amperage = mode & 0x1ff;
             printf("Mode %d:            %2d.%02dV %2d.%02dA\n", i+1, voltage/100, voltage%100, amperage/100, amperage%100);
         }
     }
@@ -132,16 +137,21 @@ int main(int argc, char* argv[]) {
 
     hid_device* handle = hid_open(0x0716, 0x5036, NULL);
 
-    if (handle == nullptr) {
-        fprintf(stderr, "PDC device not connected\n");
+    if (!handle) {
+        std::cerr << "PDC device not connected" << std::endl;
         return 1;
     }
 
     doThing(handle, msg1);
 
-    getFirmwareName(handle);
-
-    readModes(handle);
+    if (getFirmwareName(handle))
+    {
+        readModes(handle);
+    }
+    else
+    {
+        std::cout << "Firmware does not support configuration" << std::endl;
+    }
 
     hid_close(handle);
 
