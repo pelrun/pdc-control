@@ -1,24 +1,42 @@
+MCU appears to be a GD32F130C8 (STM32F103 clone, but with fewer errata)
+
 All messages:
 
-Response data:
-Header:
+Report data:
+
+(these are just a vendor HID report ID):
 data[0] = 0xFF 
 data[1] = 0x55
 
-ptr = 0
-do {
-    checksum0 = data[ptr+8];
-    checksum1 = data[ptr+9];
-    checksum2 = data[ptr+10];
-    ptr += 3
-} while (ptr < 0x36);
+data[2:7] are essentially gibberish calculated from the system tick counter and ignored, except:
 
-data[62] = checksum0+checksum1+checksum2
-data[63] = calculate_checksum()
+data[4] high bit set if response needed from device
 
-data[8] == 0x0A // End of data?
+data[8] = command ID
+data[9:61] command specific payload
+data[62] = sum of bytes 8-61
+data[63] = sum of bytes 0-61
 
+Commands:
+    UPGRADE_MODE = 0x03, (I think this is just "are you there")
+    OK_RESPONSE = 0x02, (sent by unit as a success code for commands 3,4,5,0x17)
+    LOCK_FW = 0x04,
+    UNLOCK_FW = 0x05, (needed before doing flash erase or write)
+    FLASH_ERASE = 0x08,
+    FLASH_WRITE = 0x09,
+    FLASH_READ = 0x0a, (8-bit length, must fit in one report)
+    FLASH_READ_LARGE = 0x0b, (16-bit length, unit sends multiple reports)
+    RESTART = 0x17,
 
+Read commands can return any memory area, including the bootloader, all data is sent unencrypted!
+
+Unit configuration is done entirely by reading/writing flash contents of certain fixed addresses
+
+0x08003800: 16 byte firmware name, or gibberish depending on loaded fw
+
+Only a firmware that has "PCCTL" in it's name uses the configuration data area.
+
+0x0800FC00: 0x34 byte configuration data area, not overwritten by flashing a fw
 
 Message1 and Message3 response:
 data[11] - selected mode
