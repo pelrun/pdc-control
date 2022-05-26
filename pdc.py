@@ -39,7 +39,7 @@ class PDCMessage:
     def setCommand(self, cmd):
         self.report[8] = cmd
         return self
-    
+
     def setResponseNeeded(self, flag):
         if flag:
             self.report[4] = 0x80
@@ -47,37 +47,64 @@ class PDCMessage:
             self.report[4] = 0
         return self
 
-class UpgradeMode(PDCMessage):
+class PDCMessageBool(PDCMessage):
+    def __init__(self, hidDevice, command):
+        super().__init__(self, hidDevice, command, True)
+
+    def execute(self):
+        self.send()
+        return self.hidDevice.read(64, timeout_ms=1000)[8] == PDCMessage.OK_RESPONSE
+
+class UpgradeMode(PDCMessageBool):
     def __init__(self, hidDevice):
-        PDCMessage.__init__(self, hidDevice, PDCMessage.UPGRADE_MODE, True)
+        super().__init__(self, hidDevice, PDCMessage.UPGRADE_MODE)
 
-    def check(self):
-        return self.hidDevice.read(64)[8] == PDCMessage.OK_RESPONSE
-
-class GetMemory(PDCMessage):
+class LockFlash(PDCMessageBool):
     def __init__(self, hidDevice):
-        PDCMessage.__init__(self, hidDevice, PDCMessage.FLASH_READ, True)
+        super().__init__(self, hidDevice, PDCMessage.LOCK_FLASH)
 
-    def read(self, address, length):
+class UnlockFlash(PDCMessageBool):
+    def __init__(self, hidDevice):
+        super().__init__(self, hidDevice, PDCMessage.UNLOCK_FLASH)
+
+class Restart(PDCMessageBool):
+    def __init__(self, hidDevice):
+        super().__init__(self, hidDevice, PDCMessage.Restart)
+
+class ReadMemory(PDCMessage):
+    def __init__(self, hidDevice):
+        super().__init__(self, hidDevice, PDCMessage.FLASH_READ, True)
+
+    def execute(self, address, length):
         if length > 0x28:
             length = 0x28
         struct.pack_into("<BIB", self.report, 9, 5, address,length)
         self.send()
-        resp = self.hidDevice.read(64)
+        resp = self.hidDevice.read(64, timeout_ms=1000)
         return resp[10:10+resp[9]]
-        
 
-# def getmem(address, length):
-#     msg = struct.Struct("<HxxBxxxBBIB")
-#     send(msg.pack(0x55FF,0x80,0x0A,5,address,length))
-#     resp = h.read(64)
-#     # TODO: check checksum
-#     (len,) = struct.unpack_from("<9xB", resp)
-#     return resp[10:10+len]
+class EraseBlock(PDCMessage):
+    def __init__(self, hidDevice):
+        super().__init__(hidDevice, PDCMessage.FLASH_ERASE, False)
+
+    def execute(self, address):
+        struct.pack_into("<BI", self.report, 9, 4, address)
+        self.send()
+
+class WriteFlash(PDCMessage):
+    def __init__(self, hidDevice):
+        super().__init__(hidDevice, PDCMessage.FLASH_WRITE, False)
+
+    def execute(self, address, data):
+        struct.pack_into("<BIBs", self.report, 9, 5+len(data), address, len(data), data)
+        self.send()
+
+
+
 
 def dumpbootloader():
     if UpgradeMode(h).send().check():
-        sys.stdout.buffer.write(b''.join([GetMemory.read(addr,0x20) for addr in range(0x08000000,0x08002c00,0x20)]))
+        sys.stdout.buffer.write(b''.join([ReadMemory(h).execute(addr,0x20) for addr in range(0x08000000,0x08002c00,0x20)]))
 
 h = hidapi.Device(vendor_id = vid, product_id = pid)
 
@@ -85,11 +112,7 @@ h = hidapi.Device(vendor_id = vid, product_id = pid)
 # print(f'Product: {h.get_product_string()}')
 # print(f'Serial Number: {h.get_serial_number_string()}')
 
-##        return " ".join(map(hex,self.finalMessage()))
-
-#dumpbootloader()
-
-if (UpgradeMode(h).send().check()):
+if (UpgradeMode(h).execute()):
     print("woot")
     # print(hex(struct.unpack_from("<I",GetMemory(h).read(0xE0042000,4))[0])) # DBGMCU_IDCODE
     # print(struct.unpack_from("<HH",GetMemory(h).read(0x1ffff7e0,4))) # (flash size, ram size) in kb
